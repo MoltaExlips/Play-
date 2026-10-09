@@ -8,6 +8,7 @@
 #include "../FrameDump.h"
 #include "../ee/INTC.h"
 #include "GSHandler.h"
+#include <future>
 #include "GsPixelFormats.h"
 #include "string_format.h"
 #include "ThreadUtils.h"
@@ -59,8 +60,9 @@
 
 #define LOG_NAME ("gs")
 
-CGSHandler::CGSHandler(bool gsThreaded)
+CGSHandler::CGSHandler(bool gsThreaded, bool externalPump)
     : m_gsThreaded(gsThreaded)
+    , m_externalPump(externalPump)
 {
 	RegisterPreferences();
 
@@ -102,7 +104,7 @@ CGSHandler::CGSHandler(bool gsThreaded)
 
 	ResetBase();
 
-	if(m_gsThreaded)
+	if(m_gsThreaded && !m_externalPump)
 	{
 		m_thread = std::thread([&]() { ThreadProc(); });
 		Framework::ThreadUtils::SetThreadName(m_thread, "GS Thread");
@@ -111,7 +113,7 @@ CGSHandler::CGSHandler(bool gsThreaded)
 
 CGSHandler::~CGSHandler()
 {
-	if(m_gsThreaded)
+	if(m_gsThreaded && !m_externalPump)
 	{
 		SendGSCall([this]() { m_threadDone = true; });
 		m_thread.join();
@@ -2190,12 +2192,45 @@ void CGSHandler::SendGSCall(const CMailBox::FunctionType& function, bool waitFor
 		waitForCompletion = false;
 	}
 	waitForCompletion |= forceWaitForCompletion;
+	if(m_externalPump)
+	{
+		//The pump must be notified before waiting, so post and wait separately.
+		if(waitForCompletion)
+		{
+			std::promise<void> done;
+			auto future = done.get_future();
+			m_mailBox.SendCall([&function, &done]() {
+				function();
+				done.set_value();
+			});
+			NotifyCallPosted();
+			future.wait();
+		}
+		else
+		{
+			m_mailBox.SendCall(function);
+			NotifyCallPosted();
+		}
+		return;
+	}
 	m_mailBox.SendCall(function, waitForCompletion);
 }
 
 void CGSHandler::SendGSCall(CMailBox::FunctionType&& function)
 {
 	m_mailBox.SendCall(std::move(function));
+	if(m_externalPump)
+	{
+		NotifyCallPosted();
+	}
+}
+
+void CGSHandler::ProcessPendingCalls()
+{
+	while(m_mailBox.IsPending())
+	{
+		m_mailBox.ReceiveCall();
+	}
 }
 
 void CGSHandler::ProcessSingleFrame()

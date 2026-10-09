@@ -23,7 +23,7 @@
 class CGSH_OpenGL : public CGSHandler, public CGsDebuggerInterface
 {
 public:
-	CGSH_OpenGL(bool = true);
+	CGSH_OpenGL(bool gsThreaded = true, bool externalPump = false);
 	virtual ~CGSH_OpenGL();
 
 	static void RegisterPreferences();

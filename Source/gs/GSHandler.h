@@ -818,7 +818,11 @@ public:
 	typedef Framework::CSignal<void()> FlipCompleteEvent;
 	typedef Framework::CSignal<void(uint32)> NewFrameEvent;
 
-	CGSHandler(bool = true);
+	//externalPump: don't start a GS thread; the frontend runs GS calls on a thread it already
+	//owns by calling ProcessPendingCalls() after NotifyCallPosted(). Calls keep threaded semantics
+	//(callers can wait for completion). Used by the browser build, where the main thread owns
+	//the WebGL context and GL calls made from another thread would each be proxied to it.
+	CGSHandler(bool gsThreaded = true, bool externalPump = false);
 	virtual ~CGSHandler();
 
 	static void RegisterPreferences();
@@ -901,6 +905,7 @@ public:
 	void SendGSCall(const CMailBox::FunctionType&, bool = false, bool = false);
 
 	void ProcessSingleFrame();
+	void ProcessPendingCalls();
 
 	FlipCompleteEvent OnFlipComplete;
 	NewFrameEvent OnNewFrame;
@@ -1039,6 +1044,8 @@ protected:
 	virtual void ResetImpl();
 	virtual void NotifyPreferencesChangedImpl();
 	virtual void FlipImpl(const DISPLAY_INFO&);
+	//Called after a GS call is queued when running with an external pump.
+	virtual void NotifyCallPosted() {}
 	virtual void MarkNewFrame();
 	virtual void WriteRegisterImpl(uint8, uint64);
 	void FeedImageDataImpl(const uint8*, uint32);
@@ -1135,6 +1142,7 @@ protected:
 	bool m_drawEnabled = true;
 	CINTC* m_intc = nullptr;
 	bool m_gsThreaded = true;
+	bool m_externalPump = false;
 	bool m_flipped = false;
 
 private:

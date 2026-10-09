@@ -56,8 +56,8 @@ static uint32 MakeColor(uint8 r, uint8 g, uint8 b, uint8 a)
 	return (a << 24) | (b << 16) | (g << 8) | (r);
 }
 
-CGSH_OpenGL::CGSH_OpenGL(bool gsThreaded)
-    : CGSHandler(gsThreaded)
+CGSH_OpenGL::CGSH_OpenGL(bool gsThreaded, bool externalPump)
+    : CGSHandler(gsThreaded, externalPump)
     , m_pCvtBuffer(nullptr)
 {
 	RegisterPreferences();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <emscripten/threading.h>
 #include "gs/GSH_OpenGL/GSH_OpenGL.h"
 
@@ -15,6 +16,12 @@ public:
 	void ReleaseImpl() override;
 	void PresentBackbuffer() override;
 
+protected:
+	void NotifyCallPosted() override;
+
 private:
+	static void PumpCalls(void*);
+
 	EMSCRIPTEN_WEBGL_CONTEXT_HANDLE m_context = 0;
+	std::atomic<bool> m_pumpScheduled = false;
 };

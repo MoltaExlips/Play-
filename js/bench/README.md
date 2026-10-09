@@ -35,10 +35,13 @@ a GPU the GPU-process number is SwiftShader software rendering and isn't meaning
 
 Renderer CPU per frame, lower is better. All builds run the samples at ~59 fps.
 
-| Sample | Upstream | + SIMD / wasm exceptions / LTO | + GS calls on main thread |
-|--------|---------:|-------------------------------:|--------------------------:|
-| cube   | 3.63, 3.68 ms | 3.39, 3.62 ms | 3.45, 3.38 ms |
-| teapot | 2.96, 2.98 ms | 2.86, 2.87 ms | 2.91, 2.92 ms |
-| vu1    | 6.50, 6.31 ms | 6.41, 6.37 ms | **5.64, 5.69 ms** |
+| Sample | Upstream | + SIMD / wasm exceptions / LTO | + GS calls on main thread | + direct JIT helper imports |
+|--------|---------:|-------------------------------:|--------------------------:|----------------------------:|
+| cube   | 3.63, 3.68 ms | 3.39, 3.62 ms | 3.45, 3.38 ms | 3.31, 3.34 ms |
+| teapot | 2.96, 2.98 ms | 2.86, 2.87 ms | 2.91, 2.92 ms | 2.79, 2.80 ms |
+| vu1    | 6.50, 6.31 ms | 6.41, 6.37 ms | 5.64, 5.69 ms | 5.70, 5.69 ms |
+
+Each column includes the changes to its left. The last two columns were measured in the
+same session (main-thread GS alone: cube 3.38, 3.48 / teapot 2.90, 2.89 / vu1 5.75, 5.74).
 
 The teapot sample shows a black screen in every build, including upstream.

@@ -1,5 +1,7 @@
 #include <cstdio>
+#include <exception>
 #include <emscripten/bind.h>
+#include <emscripten/heap.h>
 #include "Ps2VmJs.h"
 #include "GSH_OpenGLJs.h"
 #include "sound/SH_OpenAL/SH_OpenALProxy.h"
@@ -15,8 +17,30 @@ EMSCRIPTEN_WEBGL_CONTEXT_HANDLE g_context = 0;
 std::shared_ptr<CInputProviderEmscripten> g_inputProvider;
 CSH_OpenAL* g_soundHandler = nullptr;
 
+//An exception nothing catches (e.g. on the VM thread) otherwise ends in a bare
+//"RuntimeError: unreachable" with no hint of what went wrong.
+static void ReportUncaughtException()
+{
+	try
+	{
+		if(auto exception = std::current_exception()) std::rethrow_exception(exception);
+		fprintf(stderr, "Play! stopped: std::terminate called without an exception.\n");
+	}
+	catch(const std::exception& exception)
+	{
+		fprintf(stderr, "Play! stopped: uncaught exception: %s\n", exception.what());
+	}
+	catch(...)
+	{
+		fprintf(stderr, "Play! stopped: uncaught non-standard exception.\n");
+	}
+	fprintf(stderr, "Memory in use when it stopped: %u MB.\n", static_cast<unsigned>(emscripten_get_heap_size() >> 20));
+	abort();
+}
+
 int main(int argc, const char** argv)
 {
+	std::set_terminate(&ReportUncaughtException);
 	printf("Play! - Version %s\r\n", PLAY_VERSION);
 	return 0;
 }
@@ -146,6 +170,7 @@ std::string getStats()
 	result += "Draw calls: " + std::to_string(stats.GetDrawCalls()) + "\n";
 	result += "EE usage:  " + std::to_string(static_cast<int>(CStatsManager::ComputeCpuUsageRatio(cpu.eeIdleTicks, cpu.eeTotalTicks))) + "%\n";
 	result += "IOP usage: " + std::to_string(static_cast<int>(CStatsManager::ComputeCpuUsageRatio(cpu.iopIdleTicks, cpu.iopTotalTicks))) + "%\n";
+	result += "Memory:    " + std::to_string(emscripten_get_heap_size() >> 20) + " MB of " + std::to_string(emscripten_get_heap_max() >> 20) + " MB\n";
 #ifdef PROFILE
 	result += "\n      Zone  Share  Avg/frame    Min      Max\n";
 	result += stats.GetProfilingInfo();

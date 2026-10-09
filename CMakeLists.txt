@@ -15,6 +15,28 @@ set(CMAKE_MODULE_PATH
 )
 include(Header)
 
+if(EMSCRIPTEN)
+	# Performance options for the WebAssembly build.
+	option(PLAYJS_WASM_SIMD "Compile with WebAssembly SIMD (-msimd128)" ON)
+	option(PLAYJS_WASM_EXCEPTIONS "Use native WebAssembly exceptions instead of JS-emulated ones" ON)
+	option(PLAYJS_LTO "Use link-time optimization for Release builds" ON)
+	if(PLAYJS_WASM_SIMD)
+		# Turns Emscripten's NEON headers (used through FRAMEWORK_SIMD_USE_NEON) into real
+		# WebAssembly SIMD instead of scalar fallbacks, and lets the compiler auto-vectorize.
+		add_compile_options(-msimd128)
+		add_link_options(-msimd128)
+	endif()
+	if(PLAYJS_WASM_EXCEPTIONS)
+		# JS-emulated exceptions route calls that may throw through JavaScript invoke_* wrappers.
+		string(REPLACE "-fexceptions" "-fwasm-exceptions" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+		add_link_options(-fwasm-exceptions)
+	endif()
+	if(PLAYJS_LTO)
+		add_compile_options($<$<CONFIG:Release>:-flto>)
+		add_link_options($<$<CONFIG:Release>:-flto>)
+	endif()
+endif()
+
 set(BUILD_PLAY ON CACHE BOOL "Build Play! Emulator")
 set(BUILD_PSFPLAYER OFF CACHE BOOL "Build PsfPlayer")
 set(BUILD_TESTS ON CACHE BOOL "Build Tests")

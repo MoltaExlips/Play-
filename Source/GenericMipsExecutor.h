@@ -86,6 +86,12 @@ public:
 		return m_blockLookup.FindBlockAt(address);
 	}
 
+	void* FindBlockCodeForLink(uint32 address) const override
+	{
+		auto block = m_blockLookup.FindBlockAt(address & m_addressMask);
+		return block->IsEmpty() ? nullptr : block->GetCode();
+	}
+
 	void Reset() override
 	{
 		m_blockLookup.Clear();

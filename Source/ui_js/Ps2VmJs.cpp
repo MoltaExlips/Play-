@@ -42,6 +42,9 @@ extern "C" void SDR_Proxy(uint32, uint64, CMIPS*);
 extern "C" void TrapHandler(CMIPS*);
 extern "C" void HandleTLBException(CMIPS*);
 void TestVectorNaN(CMIPS*, uint32, uint32);
+#ifdef PLAYJS_TAIL_CALLS
+extern "C" void JsLinkTrampoline(CMIPS*);
+#endif
 
 void CPs2VmJs::CreateVM()
 {
@@ -81,6 +84,9 @@ void CPs2VmJs::CreateVM()
 	RegisterFunction(reinterpret_cast<uintptr_t>(&CCOP_SCU::HandleTLBWrite), "_CCOP_SCU_HandleTLBWrite", "vi");
 	RegisterFunction(reinterpret_cast<uintptr_t>(&FpAddTruncate), "_FpAddTruncate", "iii");
 	RegisterFunction(reinterpret_cast<uintptr_t>(&TestVectorNaN), "_TestVectorNaN", "viii");
+#ifdef PLAYJS_TAIL_CALLS
+	RegisterFunction(reinterpret_cast<uintptr_t>(&JsLinkTrampoline), "_JsLinkTrampoline", "vi");
+#endif
 
 	CPS2VM::CreateVM();
 }

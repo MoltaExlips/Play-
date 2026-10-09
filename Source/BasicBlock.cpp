@@ -255,8 +255,35 @@ void CBasicBlock::CompileProlog(CMipsJitter* jitter)
 #endif
 }
 
+#ifdef PLAYJS_TAIL_CALLS
+//Runs the next block directly from the end of the current one (generated code tail-calls this,
+//and this tail-calls the next block), so execution only returns to the executor loop when an
+//exception or the cycle quota stops it, or the next block hasn't been compiled yet.
+extern "C" void JsLinkTrampoline(CMIPS* context)
+{
+	if(context->m_State.nHasException != 0) return;
+	auto code = context->m_executor->FindBlockCodeForLink(context->m_State.nPC);
+	if(!code) return;
+	[[clang::musttail]] return reinterpret_cast<void (*)(CMIPS*)>(code)(context);
+}
+#endif
+
 void CBasicBlock::CompileEpilog(CMipsJitter* jitter, bool loopsOnItself)
 {
+#ifdef PLAYJS_TAIL_CALLS
+	bool linkBlocks = (m_category == BLOCK_CATEGORY_PS2_EE) || (m_category == BLOCK_CATEGORY_PS2_IOP);
+	auto emitLink = [&]() {
+		if(!linkBlocks) return;
+		jitter->PushRel(offsetof(CMIPS, m_State.nHasException));
+		jitter->PushCst(0);
+		jitter->BeginIf(Jitter::CONDITION_EQ);
+		{
+			jitter->JumpTo(reinterpret_cast<void*>(&JsLinkTrampoline));
+		}
+		jitter->EndIf();
+	};
+#endif
+
 	//Update cycle quota
 	jitter->PushRel(offsetof(CMIPS, m_State.cycleQuota));
 	jitter->PushCst(((m_end - m_begin) / 4) + 1);
@@ -305,6 +332,8 @@ void CBasicBlock::CompileEpilog(CMipsJitter* jitter, bool loopsOnItself)
 				jitter->JumpToDynamic(reinterpret_cast<void*>(&BranchBlockTrampoline));
 			}
 			jitter->EndIf();
+#elif defined(PLAYJS_TAIL_CALLS)
+			emitLink();
 #endif
 		}
 	}
@@ -323,6 +352,8 @@ void CBasicBlock::CompileEpilog(CMipsJitter* jitter, bool loopsOnItself)
 			jitter->JumpToDynamic(reinterpret_cast<void*>(&NextBlockTrampoline));
 		}
 		jitter->EndIf();
+#elif defined(PLAYJS_TAIL_CALLS)
+		emitLink();
 #endif
 	}
 	jitter->EndIf();

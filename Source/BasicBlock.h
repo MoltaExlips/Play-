@@ -82,6 +82,12 @@ public:
 	uint32 GetEndAddress() const;
 	bool IsCompiled() const;
 	bool IsEmpty() const;
+#ifndef AOT_USE_CACHE
+	void* GetCode() const
+	{
+		return m_function.GetCode();
+	}
+#endif
 
 	uint32 GetRecycleCount() const;
 	void SetRecycleCount(uint32);

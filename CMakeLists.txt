@@ -20,6 +20,15 @@ if(EMSCRIPTEN)
 	option(PLAYJS_WASM_SIMD "Compile with WebAssembly SIMD (-msimd128)" ON)
 	option(PLAYJS_WASM_EXCEPTIONS "Use native WebAssembly exceptions instead of JS-emulated ones" ON)
 	option(PLAYJS_LTO "Use link-time optimization for Release builds" ON)
+	#Chains compiled EE/IOP blocks with wasm tail calls instead of returning to the executor
+	#loop after each block. Needs browsers with tail-call support (Chrome 112, Firefox 121,
+	#Safari 18.2).
+	option(PLAYJS_TAIL_CALLS "Link compiled blocks with wasm tail calls" OFF)
+	if(PLAYJS_TAIL_CALLS)
+		add_compile_definitions(PLAYJS_TAIL_CALLS=1 CODEGEN_WASM_TAIL_CALLS=1)
+		add_compile_options(-mtail-call)
+		add_link_options(-mtail-call)
+	endif()
 	if(PLAYJS_WASM_SIMD)
 		# Turns Emscripten's NEON headers (used through FRAMEWORK_SIMD_USE_NEON) into real
 		# WebAssembly SIMD instead of scalar fallbacks, and lets the compiler auto-vectorize.

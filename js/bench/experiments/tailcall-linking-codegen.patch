@@ -1,0 +1,29 @@
+diff --git a/include/WasmDefs.h b/include/WasmDefs.h
+index 0036a51..087fb84 100644
+--- a/include/WasmDefs.h
++++ b/include/WasmDefs.h
+@@ -56,6 +56,7 @@ namespace Wasm
+ 		INST_BR_IF = 0x0D,
+ 		INST_BR_TABLE = 0x0E,
+ 		INST_CALL_INDIRECT = 0x11,
++		INST_RETURN_CALL_INDIRECT = 0x13,
+ 		INST_SELECT = 0x1B,
+ 		INST_LOCAL_GET = 0x20,
+ 		INST_LOCAL_SET = 0x21,
+diff --git a/src/Jitter_CodeGen_Wasm.cpp b/src/Jitter_CodeGen_Wasm.cpp
+index 3f86e4a..0c6ba62 100644
+--- a/src/Jitter_CodeGen_Wasm.cpp
++++ b/src/Jitter_CodeGen_Wasm.cpp
+@@ -1151,7 +1151,12 @@ void CCodeGen_Wasm::Emit_ExternJmp(const STATEMENT& statement)
+ 	m_functionStream.Write8(Wasm::INST_I32_CONST);
+ 	CWasmModuleBuilder::WriteULeb128(m_functionStream, fctInfo->id);
+ 
++#ifdef CODEGEN_WASM_TAIL_CALLS
++	//A real jump: the callee replaces this frame, matching native backends (requires wasm tail calls).
++	m_functionStream.Write8(Wasm::INST_RETURN_CALL_INDIRECT);
++#else
+ 	m_functionStream.Write8(Wasm::INST_CALL_INDIRECT);
++#endif
+ 	m_functionStream.Write8(sigIdx); //Signature index
+ 	m_functionStream.Write8(0x00);   //Table index
+ }

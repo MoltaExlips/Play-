@@ -10,6 +10,7 @@
 
 CPs2VmJs* g_virtualMachine = nullptr;
 CGSHandler::NewFrameEvent::Connection g_gsNewFrameConnection;
+CPS2VM::NewFrameEvent::Connection g_vmNewFrameConnection;
 EMSCRIPTEN_WEBGL_CONTEXT_HANDLE g_context = 0;
 std::shared_ptr<CInputProviderEmscripten> g_inputProvider;
 CSH_OpenAL* g_soundHandler = nullptr;
@@ -109,6 +110,7 @@ extern "C" void initVm()
 	}
 
 	g_gsNewFrameConnection = g_virtualMachine->GetGSHandler()->OnNewFrame.Connect(std::bind(&CStatsManager::OnGsNewFrame, &CStatsManager::GetInstance(), std::placeholders::_1));
+	g_vmNewFrameConnection = g_virtualMachine->OnNewFrame.Connect(std::bind(&CStatsManager::OnNewFrame, &CStatsManager::GetInstance(), g_virtualMachine));
 
 	EMSCRIPTEN_RESULT result = EMSCRIPTEN_RESULT_SUCCESS;
 
@@ -134,6 +136,23 @@ int getFrames()
 	return CStatsManager::GetInstance().GetFrames();
 }
 
+//Stats accumulated since the last clearStats(): draw calls, EE/IOP usage and, in builds
+//configured with -DPROFILE=ON, time spent per subsystem.
+std::string getStats()
+{
+	auto& stats = CStatsManager::GetInstance();
+	auto cpu = stats.GetCpuUtilisationInfo();
+	std::string result;
+	result += "Draw calls: " + std::to_string(stats.GetDrawCalls()) + "\n";
+	result += "EE usage:  " + std::to_string(static_cast<int>(CStatsManager::ComputeCpuUsageRatio(cpu.eeIdleTicks, cpu.eeTotalTicks))) + "%\n";
+	result += "IOP usage: " + std::to_string(static_cast<int>(CStatsManager::ComputeCpuUsageRatio(cpu.iopIdleTicks, cpu.iopTotalTicks))) + "%\n";
+#ifdef PROFILE
+	result += "\n      Zone  Share  Avg/frame    Min      Max\n";
+	result += stats.GetProfilingInfo();
+#endif
+	return result;
+}
+
 void clearStats()
 {
 	CStatsManager::GetInstance().ClearStats();
@@ -147,4 +166,5 @@ EMSCRIPTEN_BINDINGS(Play)
 	function("bootDiscImage", &bootDiscImage);
 	function("getFrames", &getFrames);
 	function("clearStats", &clearStats);
+	function("getStats", &getStats);
 }

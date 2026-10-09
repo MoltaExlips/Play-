@@ -98,9 +98,12 @@ protected:
 	MIPSReflection::SUBTABLE m_ReflMfPerfTable;
 	MIPSReflection::SUBTABLE m_ReflMtPerfTable;
 
-private:
+public:
+	//Called from generated code; public so the browser build can register them
 	static void HandleTLBRead(CMIPS*);
 	static void HandleTLBWrite(CMIPS*);
+
+private:
 
 	typedef void (CCOP_SCU::*InstructionFuncConstant)();
 

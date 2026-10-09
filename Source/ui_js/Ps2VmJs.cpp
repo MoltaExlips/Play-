@@ -4,6 +4,9 @@
 #include "BasicBlock.h"
 #include "PS2VM_Preferences.h"
 #include "AppConfig.h"
+#include "COP_SCU.h"
+#include "ee/PS2OS.h"
+#include "ee/FpAddTruncate.h"
 #include <emscripten.h>
 
 // CodeGen binds each helper by wrapping its JS export (Emscripten's lazy export stub) with
@@ -15,8 +18,15 @@ EM_JS(void, BindImportDirect, (int importId, uintptr_t functionPtr), {
 	Module.codeGenImportTable.set(importId, getWasmTableEntry(functionPtr));
 });
 
+// CodeGen's registration looks helpers up as Module[name], which only works for exported
+// extern "C" functions. Expose every helper (including C++ statics) under its name first.
+EM_JS(void, ExposeFunction, (const char* functionName, uintptr_t functionPtr), {
+	Module[UTF8ToString(functionName)] = getWasmTableEntry(functionPtr);
+});
+
 static void RegisterFunction(uintptr_t functionPtr, const char* functionName, const char* functionSig)
 {
+	ExposeFunction(functionName, functionPtr);
 	Jitter::CWasmFunctionRegistry::RegisterFunction(functionPtr, functionName, functionSig);
 	BindImportDirect(Jitter::CWasmFunctionRegistry::FindFunction(functionPtr)->id, functionPtr);
 }
@@ -29,6 +39,9 @@ extern "C" void SWL_Proxy(uint32, uint32, CMIPS*);
 extern "C" void SWR_Proxy(uint32, uint32, CMIPS*);
 extern "C" void SDL_Proxy(uint32, uint64, CMIPS*);
 extern "C" void SDR_Proxy(uint32, uint64, CMIPS*);
+extern "C" void TrapHandler(CMIPS*);
+extern "C" void HandleTLBException(CMIPS*);
+void TestVectorNaN(CMIPS*, uint32, uint32);
 
 void CPs2VmJs::CreateVM()
 {
@@ -56,6 +69,18 @@ void CPs2VmJs::CreateVM()
 
 	RegisterFunction(reinterpret_cast<uintptr_t>(&SDL_Proxy), "_SDL_Proxy", "viji");
 	RegisterFunction(reinterpret_cast<uintptr_t>(&SDR_Proxy), "_SDR_Proxy", "viji");
+
+	//Helpers that generated code calls through function pointers. Calls to a helper missing here
+	//compile to an invalid wasm module (e.g. games that enable the TLB, like Shadow of the Colossus).
+	RegisterFunction(reinterpret_cast<uintptr_t>(&CPS2OS::TranslateAddress), "_CPS2OS_TranslateAddress", "iii");
+	RegisterFunction(reinterpret_cast<uintptr_t>(&CPS2OS::TranslateAddressTLB), "_CPS2OS_TranslateAddressTLB", "iii");
+	RegisterFunction(reinterpret_cast<uintptr_t>(&CPS2OS::CheckTLBExceptions), "_CPS2OS_CheckTLBExceptions", "iiii");
+	RegisterFunction(reinterpret_cast<uintptr_t>(&HandleTLBException), "_HandleTLBException", "vi");
+	RegisterFunction(reinterpret_cast<uintptr_t>(&TrapHandler), "_TrapHandler", "vi");
+	RegisterFunction(reinterpret_cast<uintptr_t>(&CCOP_SCU::HandleTLBRead), "_CCOP_SCU_HandleTLBRead", "vi");
+	RegisterFunction(reinterpret_cast<uintptr_t>(&CCOP_SCU::HandleTLBWrite), "_CCOP_SCU_HandleTLBWrite", "vi");
+	RegisterFunction(reinterpret_cast<uintptr_t>(&FpAddTruncate), "_FpAddTruncate", "iii");
+	RegisterFunction(reinterpret_cast<uintptr_t>(&TestVectorNaN), "_TestVectorNaN", "viii");
 
 	CPS2VM::CreateVM();
 }

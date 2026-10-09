@@ -32,7 +32,8 @@ void CMIPSInstructionFactory::SetupQuickVariables(uint32 nAddress, CMipsJitter* 
 	m_nOpcode = m_pCtx->m_pMemoryMap->GetInstruction(m_nAddress);
 }
 
-static void HandleTLBException(CMIPS*)
+//Not static: the browser build registers it so generated code can jump to it.
+extern "C" void HandleTLBException(CMIPS*)
 {
 	//Will exit CPU execution loop with an exception pending
 }

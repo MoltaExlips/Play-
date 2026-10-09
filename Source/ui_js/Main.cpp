@@ -8,6 +8,7 @@
 #include "input/PH_GenericInput.h"
 #include "InputProviderEmscripten.h"
 #include "ui_shared/StatsManager.h"
+#include "BasicBlock.h"
 #include "DefaultAppConfig.h"
 
 CPs2VmJs* g_virtualMachine = nullptr;
@@ -171,6 +172,14 @@ std::string getStats()
 	result += "EE usage:  " + std::to_string(static_cast<int>(CStatsManager::ComputeCpuUsageRatio(cpu.eeIdleTicks, cpu.eeTotalTicks))) + "%\n";
 	result += "IOP usage: " + std::to_string(static_cast<int>(CStatsManager::ComputeCpuUsageRatio(cpu.iopIdleTicks, cpu.iopTotalTicks))) + "%\n";
 	result += "Memory:    " + std::to_string(emscripten_get_heap_size() >> 20) + " MB of " + std::to_string(emscripten_get_heap_max() >> 20) + " MB\n";
+	{
+		auto compile = GetBlockCompileStats(true);
+		char line[200];
+		snprintf(line, sizeof(line), "JIT compiles: EE %u (%.1f ms) | IOP %u (%.1f ms) | VU %u (%.1f ms), VU cache hits %u\n",
+		         compile.count[0], compile.milliseconds[0], compile.count[1], compile.milliseconds[1],
+		         compile.count[2], compile.milliseconds[2], compile.vuCacheHits);
+		result += line;
+	}
 #ifdef PROFILE
 	result += "\n      Zone  Share  Avg/frame    Min      Max\n";
 	result += stats.GetProfilingInfo();

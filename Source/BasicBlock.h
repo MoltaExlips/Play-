@@ -45,6 +45,19 @@ extern "C"
 	void BranchBlockTrampoline(CMIPS*);
 }
 
+#ifdef __EMSCRIPTEN__
+//Blocks compiled and time spent compiling them (translation plus wasm module compile and
+//instantiation), per category, since the last reset. Index: 0 = EE, 1 = IOP, 2 = VU.
+struct BLOCK_COMPILE_STATS
+{
+	uint32 count[3] = {};
+	double milliseconds[3] = {};
+	uint32 vuCacheHits = 0;
+};
+BLOCK_COMPILE_STATS GetBlockCompileStats(bool reset);
+void CountVuBlockCacheHit();
+#endif
+
 enum LINK_SLOT
 {
 	LINK_SLOT_NEXT,

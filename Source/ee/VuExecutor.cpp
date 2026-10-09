@@ -56,6 +56,9 @@ BasicBlockPtr CVuExecutor::BlockFactory(CMIPS& context, uint32 begin, uint32 end
 			const auto& basicBlock(blockIterator->second);
 			if(basicBlock->GetBeginAddress() == begin && basicBlock->GetEndAddress() == end)
 			{
+#ifdef __EMSCRIPTEN__
+				CountVuBlockCacheHit();
+#endif
 				return basicBlock;
 			}
 		}
@@ -65,6 +68,9 @@ BasicBlockPtr CVuExecutor::BlockFactory(CMIPS& context, uint32 begin, uint32 end
 			auto result = std::make_shared<CVuBasicBlock>(context, begin, end, m_blockCategory);
 			result->CopyFunctionFrom(beginBlockIterator->second);
 			m_cachedBlocks.insert(std::make_pair(blockKey, result));
+#ifdef __EMSCRIPTEN__
+			CountVuBlockCacheHit();
+#endif
 			return result;
 		}
 	}

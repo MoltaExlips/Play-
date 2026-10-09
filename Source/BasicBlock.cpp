@@ -74,8 +74,53 @@ void CBasicBlock::SetAotBlockOutputStream(Framework::CStdStream* outputStream)
 
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <atomic>
+#include <chrono>
+
+static std::atomic<uint32> g_compileCount[3];
+static std::atomic<uint64> g_compileNanoseconds[3];
+static std::atomic<uint32> g_vuCacheHits;
+
+static int GetCompileStatsIndex(BLOCK_CATEGORY category)
+{
+	switch(category)
+	{
+	case BLOCK_CATEGORY_PS2_EE:
+		return 0;
+	case BLOCK_CATEGORY_PS2_IOP:
+		return 1;
+	case BLOCK_CATEGORY_PS2_VU:
+		return 2;
+	default:
+		return -1;
+	}
+}
+
+BLOCK_COMPILE_STATS GetBlockCompileStats(bool reset)
+{
+	BLOCK_COMPILE_STATS stats;
+	for(int i = 0; i < 3; i++)
+	{
+		stats.count[i] = reset ? g_compileCount[i].exchange(0) : g_compileCount[i].load();
+		uint64 ns = reset ? g_compileNanoseconds[i].exchange(0) : g_compileNanoseconds[i].load();
+		stats.milliseconds[i] = static_cast<double>(ns) / 1e6;
+	}
+	stats.vuCacheHits = reset ? g_vuCacheHits.exchange(0) : g_vuCacheHits.load();
+	return stats;
+}
+
+void CountVuBlockCacheHit()
+{
+	g_vuCacheHits++;
+}
+#endif
+
 void CBasicBlock::Compile()
 {
+#ifdef __EMSCRIPTEN__
+	auto compileStart = std::chrono::steady_clock::now();
+#endif
 #ifndef AOT_USE_CACHE
 
 	Framework::CMemStream stream;
@@ -99,6 +144,14 @@ void CBasicBlock::Compile()
 	}
 
 	m_function = CMemoryFunction(stream.GetBuffer(), stream.GetSize());
+#ifdef __EMSCRIPTEN__
+	if(int index = GetCompileStatsIndex(m_category); index >= 0)
+	{
+		auto elapsed = std::chrono::steady_clock::now() - compileStart;
+		g_compileCount[index]++;
+		g_compileNanoseconds[index] += std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count();
+	}
+#endif
 
 #ifdef VTUNE_ENABLED
 	if(iJIT_IsProfilingActive() == iJIT_SAMPLING_ON)

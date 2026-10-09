@@ -45,3 +45,17 @@ Each column includes the changes to its left. The last two columns were measured
 same session (main-thread GS alone: cube 3.38, 3.48 / teapot 2.90, 2.89 / vu1 5.75, 5.74).
 
 The teapot sample shows a black screen in every build, including upstream.
+
+## Findings from profiling (heavier load: vu1 sample scaled to 24x24 / 48x48 cubes)
+
+- Emulation thread: ~50% JIT-generated code, ~14% `CGenericMipsExecutor::Execute` (returning to
+  the dispatcher after every block and calling into the next block's wasm instance), GIF packet
+  parsing ~3%, VIF unpack ~2.6%. The dispatch loop itself is already minimal after inlining.
+- Linking blocks with wasm tail calls through a lookup trampoline is correct but ~7% slower; see
+  the `experiment/tailcall-linking` branch.
+- Block compilation costs ~0.29 ms per block (IR optimisation, wasm module compile and
+  instantiation); `getStats()` now reports compiles per second so games that keep reaching new
+  code or uploading new VU microcode can be identified. Table growth is not a factor (V8 grows
+  funcref tables cheaply).
+- VU sign/zero flag computation (`MD_MAKESZ`) is already four SIMD instructions in the wasm backend.
+- Memory stays flat (156 MB) over a 10-minute run of the 48x48 sample.

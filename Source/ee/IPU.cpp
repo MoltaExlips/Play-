@@ -1941,13 +1941,28 @@ bool CIPU::CCSCCommand::Execute()
 			}
 			else
 			{
-				uint32 blockValue = 0;
-				if(!m_IN_FIFO->TryGetBits_MSBF(8, blockValue))
+				//Drain everything available in one go (4 bytes per read while possible)
+				//instead of one byte per pass through the state machine.
+				while((BLOCK_SIZE - m_currentIndex) >= 4 && m_IN_FIFO->GetAvailableBits() >= 32)
 				{
-					return false;
+					uint32 blockValue = 0;
+					m_IN_FIFO->TryGetBits_MSBF(32, blockValue);
+					m_block[m_currentIndex + 0] = static_cast<uint8>(blockValue >> 24);
+					m_block[m_currentIndex + 1] = static_cast<uint8>(blockValue >> 16);
+					m_block[m_currentIndex + 2] = static_cast<uint8>(blockValue >> 8);
+					m_block[m_currentIndex + 3] = static_cast<uint8>(blockValue >> 0);
+					m_currentIndex += 4;
 				}
-				m_block[m_currentIndex] = static_cast<uint8>(blockValue);
-				m_currentIndex++;
+				while(m_currentIndex != BLOCK_SIZE)
+				{
+					uint32 blockValue = 0;
+					if(!m_IN_FIFO->TryGetBits_MSBF(8, blockValue))
+					{
+						return false;
+					}
+					m_block[m_currentIndex] = static_cast<uint8>(blockValue);
+					m_currentIndex++;
+				}
 			}
 		}
 		break;
@@ -1965,17 +1980,29 @@ bool CIPU::CCSCCommand::Execute()
 			uint16 alphaTh0 = (m_TH0 & 0x1FF);
 			uint16 alphaTh1 = (m_TH1 & 0x1FF);
 
+			//Each chroma sample is shared by 2x2 pixels: compute its terms once. Every pixel still
+			//goes through the same float operations in the same order, so results are identical.
+			float crR[0x40], cbG[0x40], crG[0x40], cbB[0x40];
+			for(unsigned int k = 0; k < 0x40; k++)
+			{
+				float nCb = nBlockCb[k];
+				float nCr = nBlockCr[k];
+				crR[k] = 1.402f * (nCr - 128);
+				cbG[k] = 0.34414f * (nCb - 128);
+				crG[k] = 0.71414f * (nCr - 128);
+				cbB[k] = 1.772f * (nCb - 128);
+			}
+
 			for(unsigned int i = 0; i < 16; i++)
 			{
 				for(unsigned int j = 0; j < 16; j++)
 				{
 					float nY = pY[j];
-					float nCb = nBlockCb[pCbCrMap[j]];
-					float nCr = nBlockCr[pCbCrMap[j]];
+					unsigned int c = pCbCrMap[j];
 
-					float nR = nY + 1.402f * (nCr - 128);
-					float nG = nY - 0.34414f * (nCb - 128) - 0.71414f * (nCr - 128);
-					float nB = nY + 1.772f * (nCb - 128);
+					float nR = nY + crR[c];
+					float nG = nY - cbG[c] - crG[c];
+					float nB = nY + cbB[c];
 
 					nR = std::clamp(nR, 0.f, 255.f);
 					nG = std::clamp(nG, 0.f, 255.f);

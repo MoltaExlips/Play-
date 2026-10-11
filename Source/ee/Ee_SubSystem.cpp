@@ -1,4 +1,5 @@
 #include "Ee_SubSystem.h"
+#include "Profiler.h"
 #include "EeExecutor.h"
 #include "VuExecutor.h"
 #include "AppConfig.h"
@@ -771,6 +772,11 @@ void CSubSystem::HandleVu1AreaWrite(uint32 offset, uint32 value)
 
 void CSubSystem::ExecuteIpu()
 {
+#ifdef PROFILE
+	//MPEG decoding (FMVs, logos) runs here; give it its own zone instead of counting it as EE.
+	static const auto ipuProfilerZone = CProfiler::GetInstance().RegisterZone("IPU");
+	CProfilerZone profilerZone(ipuProfilerZone);
+#endif
 	m_dmac.ResumeDMA4();
 	while(m_ipu.WillExecuteCommand())
 	{

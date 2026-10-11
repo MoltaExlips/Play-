@@ -1,7 +1,10 @@
 #include <cstdio>
+#include <algorithm>
 #include <exception>
 #include <emscripten/bind.h>
 #include <emscripten/heap.h>
+#include <future>
+#include <AL/al.h>
 #include "Ps2VmJs.h"
 #include "GSH_OpenGLJs.h"
 #include "sound/SH_OpenAL/SH_OpenALProxy.h"
@@ -107,12 +110,12 @@ extern "C" void initVm()
 		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::CROSS, CInputProviderEmscripten::MakeBindingTarget("KeyZ"));
 		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::TRIANGLE, CInputProviderEmscripten::MakeBindingTarget("KeyS"));
 		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::CIRCLE, CInputProviderEmscripten::MakeBindingTarget("KeyX"));
-		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::L1, CInputProviderEmscripten::MakeBindingTarget("Key1"));
-		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::L2, CInputProviderEmscripten::MakeBindingTarget("Key2"));
-		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::L3, CInputProviderEmscripten::MakeBindingTarget("Key3"));
-		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::R1, CInputProviderEmscripten::MakeBindingTarget("Key8"));
-		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::R2, CInputProviderEmscripten::MakeBindingTarget("Key9"));
-		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::R3, CInputProviderEmscripten::MakeBindingTarget("Key0"));
+		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::L1, CInputProviderEmscripten::MakeBindingTarget("Digit1"));
+		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::L2, CInputProviderEmscripten::MakeBindingTarget("Digit2"));
+		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::L3, CInputProviderEmscripten::MakeBindingTarget("Digit3"));
+		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::R1, CInputProviderEmscripten::MakeBindingTarget("Digit8"));
+		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::R2, CInputProviderEmscripten::MakeBindingTarget("Digit9"));
+		bindingManager.SetSimpleBinding(0, PS2::CControllerInfo::R3, CInputProviderEmscripten::MakeBindingTarget("Digit0"));
 
 		bindingManager.SetSimulatedAxisBinding(0, PS2::CControllerInfo::ANALOG_LEFT_X,
 		                                       CInputProviderEmscripten::MakeBindingTarget("KeyF"),
@@ -187,6 +190,54 @@ std::string getStats()
 	return result;
 }
 
+void pauseVm()
+{
+	g_virtualMachine->PauseAsyncJs();
+}
+
+void resumeVm()
+{
+	g_virtualMachine->ResumeAsyncJs();
+}
+
+bool isPaused()
+{
+	return g_virtualMachine->IsPaused();
+}
+
+void setEeClockScale(int numerator, int denominator)
+{
+	if(numerator <= 0 || denominator <= 0) return;
+	g_virtualMachine->SetEeClockScale(numerator, denominator);
+}
+
+//Save states run on the VM thread; the page polls getStateResult() instead of blocking the main
+//thread (which runs GS calls the save needs).
+static std::future<bool> g_stateOperation;
+
+void saveState(std::string path)
+{
+	g_stateOperation = g_virtualMachine->SaveState(path);
+}
+
+void loadState(std::string path)
+{
+	g_stateOperation = g_virtualMachine->LoadState(path);
+}
+
+//-1: in progress, 0: failed, 1: succeeded, 2: nothing pending.
+int getStateResult()
+{
+	if(!g_stateOperation.valid()) return 2;
+	if(g_stateOperation.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return -1;
+	return g_stateOperation.get() ? 1 : 0;
+}
+
+void setVolume(float volume)
+{
+	alListenerf(AL_GAIN, std::clamp(volume, 0.f, 1.f));
+}
+
 void clearStats()
 {
 	CStatsManager::GetInstance().ClearStats();
@@ -201,4 +252,12 @@ EMSCRIPTEN_BINDINGS(Play)
 	function("getFrames", &getFrames);
 	function("clearStats", &clearStats);
 	function("getStats", &getStats);
+	function("pauseVm", &pauseVm);
+	function("resumeVm", &resumeVm);
+	function("isPaused", &isPaused);
+	function("setEeClockScale", &setEeClockScale);
+	function("saveState", &saveState);
+	function("loadState", &loadState);
+	function("getStateResult", &getStateResult);
+	function("setVolume", &setVolume);
 }

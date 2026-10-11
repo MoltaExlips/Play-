@@ -92,6 +92,7 @@ void CPs2VmJs::BootElf(std::string path)
 		try
 		{
 			Reset();
+			ApplyEeClockScale();
 			m_ee->m_os->BootFromFile(path);
 		}
 		catch(const std::exception& ex)
@@ -112,6 +113,7 @@ void CPs2VmJs::BootDiscImage(std::string path)
 		{
 			CAppConfig::GetInstance().SetPreferencePath(PREF_PS2_CDROM0_PATH, path);
 			Reset();
+			ApplyEeClockScale();
 			m_ee->m_os->BootFromCDROM();
 		}
 		catch(const std::exception& ex)
@@ -122,4 +124,36 @@ void CPs2VmJs::BootDiscImage(std::string path)
 		printf("Starting...\r\n");
 		ResumeImpl();
 	});
+}
+void CPs2VmJs::PauseAsyncJs()
+{
+	PauseAsync();
+}
+
+void CPs2VmJs::ResumeAsyncJs()
+{
+	m_mailBox.SendCall([this]() {
+		if(GetStatus() == RUNNING) return;
+		ResumeImpl();
+		OnRunningStateChange();
+	});
+}
+
+bool CPs2VmJs::IsPaused() const
+{
+	return GetStatus() == PAUSED;
+}
+
+void CPs2VmJs::SetEeClockScale(uint32 numerator, uint32 denominator)
+{
+	m_mailBox.SendCall([this, numerator, denominator]() {
+		m_eeScaleNumerator = numerator;
+		m_eeScaleDenominator = denominator;
+		ApplyEeClockScale();
+	});
+}
+
+void CPs2VmJs::ApplyEeClockScale()
+{
+	SetEeFrequencyScale(m_eeScaleNumerator, m_eeScaleDenominator);
 }

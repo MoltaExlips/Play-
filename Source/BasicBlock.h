@@ -53,6 +53,7 @@ struct BLOCK_COMPILE_STATS
 	uint32 count[3] = {};
 	double milliseconds[3] = {};
 	uint32 vuCacheHits = 0;
+	uint32 jitCacheHits = 0;
 };
 BLOCK_COMPILE_STATS GetBlockCompileStats(bool reset);
 //EE compiles: whether the block starts at an address never compiled before, and the address range.
@@ -65,6 +66,13 @@ struct EE_COMPILE_ADDRESS_STATS
 	uint32 maxAddress = 0;
 };
 EE_COMPILE_ADDRESS_STATS GetEeCompileAddressStats(bool reset);
+
+//Compiled code cache (EE blocks). The frontend installs these; the key is 16 bytes and covers
+//everything that affects code generation, so cached code can be reused across sessions.
+typedef bool (*JitCacheLookupFunction)(const uint8* key, const uint8*& code, size_t& size);
+typedef void (*JitCacheStoreFunction)(const uint8* key, const uint8* code, size_t size);
+extern JitCacheLookupFunction g_jitCacheLookup;
+extern JitCacheStoreFunction g_jitCacheStore;
 void CountVuBlockCacheHit();
 #endif
 
@@ -98,6 +106,13 @@ public:
 	void Execute();
 	void Compile();
 	virtual void CompileRange(CMipsJitter*);
+#ifdef __EMSCRIPTEN__
+	//Extra block state that changes the generated code (part of the compiled code cache key).
+	virtual uint32 GetCompileKeyExtra() const
+	{
+		return 0;
+	}
+#endif
 
 	void AddBlockCompileHints(uint32);
 

@@ -74,6 +74,9 @@ void CBasicBlock::SetAotBlockOutputStream(Framework::CStdStream* outputStream)
 
 #endif
 
+#include "xxhash.h"
+#include "ee/VUShared.h"
+#include <vector>
 #ifdef __EMSCRIPTEN__
 #include <atomic>
 #include <mutex>
@@ -82,6 +85,7 @@ void CBasicBlock::SetAotBlockOutputStream(Framework::CStdStream* outputStream)
 static std::atomic<uint32> g_compileCount[3];
 static std::atomic<uint64> g_compileNanoseconds[3];
 static std::atomic<uint32> g_vuCacheHits;
+static std::atomic<uint32> g_jitCacheHits;
 
 static int GetCompileStatsIndex(BLOCK_CATEGORY category)
 {
@@ -108,6 +112,7 @@ BLOCK_COMPILE_STATS GetBlockCompileStats(bool reset)
 		stats.milliseconds[i] = static_cast<double>(ns) / 1e6;
 	}
 	stats.vuCacheHits = reset ? g_vuCacheHits.exchange(0) : g_vuCacheHits.load();
+	stats.jitCacheHits = reset ? g_jitCacheHits.exchange(0) : g_jitCacheHits.load();
 	return stats;
 }
 
@@ -136,10 +141,50 @@ EE_COMPILE_ADDRESS_STATS GetEeCompileAddressStats(bool reset)
 }
 #endif
 
+JitCacheLookupFunction g_jitCacheLookup = nullptr;
+JitCacheStoreFunction g_jitCacheStore = nullptr;
+
+//Hash of everything that determines an EE block's generated code.
+static void ComputeJitCacheKey(CMIPS& context, uint32 begin, uint32 end, uint32 category, uint32 hints, uint32 extra, uint8 key[16])
+{
+	std::vector<uint32> data;
+	data.reserve(((end - begin) / 4) + 16);
+	data.push_back(0x52564A43); //format version ("RVJC")
+	data.push_back(begin);
+	data.push_back(end);
+	data.push_back(category);
+	data.push_back(hints);
+	data.push_back(extra);
+	//Function pointers are wasm table indices, fixed for a given build (the page keys the cache by build).
+	data.push_back(static_cast<uint32>(reinterpret_cast<uintptr_t>(context.m_pAddrTranslator)));
+	data.push_back(static_cast<uint32>(reinterpret_cast<uintptr_t>(context.m_TLBExceptionChecker)));
+	data.push_back(VUShared::g_fastVuMath ? 1 : 0);
+	for(uint32 address = begin; address <= end; address += 4)
+	{
+		data.push_back(context.m_pMemoryMap->GetInstruction(address));
+	}
+	auto hash = XXH3_128bits(data.data(), data.size() * sizeof(uint32));
+	memcpy(key, &hash, 16);
+}
+
 void CBasicBlock::Compile()
 {
 #ifdef __EMSCRIPTEN__
 	auto compileStart = std::chrono::steady_clock::now();
+	uint8 cacheKey[16];
+	bool useJitCache = (m_category == BLOCK_CATEGORY_PS2_EE) && g_jitCacheLookup && g_jitCacheStore;
+	if(useJitCache)
+	{
+		ComputeJitCacheKey(m_context, m_begin, m_end, m_category, m_blockCompileHints, GetCompileKeyExtra(), cacheKey);
+		const uint8* cachedCode = nullptr;
+		size_t cachedSize = 0;
+		if(g_jitCacheLookup(cacheKey, cachedCode, cachedSize))
+		{
+			m_function = CMemoryFunction(cachedCode, cachedSize);
+			g_jitCacheHits++;
+			return;
+		}
+	}
 #endif
 #ifndef AOT_USE_CACHE
 
@@ -165,6 +210,10 @@ void CBasicBlock::Compile()
 
 	m_function = CMemoryFunction(stream.GetBuffer(), stream.GetSize());
 #ifdef __EMSCRIPTEN__
+	if(useJitCache)
+	{
+		g_jitCacheStore(cacheKey, stream.GetBuffer(), stream.GetSize());
+	}
 	if(int index = GetCompileStatsIndex(m_category); index >= 0)
 	{
 		auto elapsed = std::chrono::steady_clock::now() - compileStart;

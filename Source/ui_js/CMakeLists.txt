@@ -45,6 +45,8 @@ add_executable(Play
 	GSH_OpenGLJs.h
 	InputProviderEmscripten.cpp
 	InputProviderEmscripten.h
+	JitCache.cpp
+	JitCache.h
 	Main.cpp
 	Ps2VmJs.cpp
 	Ps2VmJs.h

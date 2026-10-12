@@ -9,6 +9,12 @@ public:
 
 	void SetFpRoundingMode(Jitter::CJitter::ROUNDINGMODE);
 	void SetIsIdleLoopBlock();
+#ifdef __EMSCRIPTEN__
+	uint32 GetCompileKeyExtra() const override
+	{
+		return static_cast<uint32>(m_fpRoundingMode) | (m_isIdleLoopBlock ? 0x100 : 0);
+	}
+#endif
 
 protected:
 	void CompileProlog(CMipsJitter*) override;

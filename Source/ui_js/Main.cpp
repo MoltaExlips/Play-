@@ -13,6 +13,7 @@
 #include "ui_shared/StatsManager.h"
 #include "BasicBlock.h"
 #include "ee/VUShared.h"
+#include "JitCache.h"
 #include "DefaultAppConfig.h"
 
 CPs2VmJs* g_virtualMachine = nullptr;
@@ -78,6 +79,7 @@ extern "C" void initVm()
 	g_context = emscripten_webgl_create_context("#outputCanvas", &attr);
 	assert(g_context >= 0);
 
+	JitCache::Install();
 	g_virtualMachine = new CPs2VmJs();
 	g_virtualMachine->Initialize();
 	g_virtualMachine->CreateGSHandler(CGSH_OpenGLJs::GetFactoryFunction(g_context));
@@ -186,8 +188,8 @@ std::string getStats()
 	{
 		auto compile = GetBlockCompileStats(true);
 		char line[200];
-		snprintf(line, sizeof(line), "JIT compiles: EE %u (%.1f ms) | IOP %u (%.1f ms) | VU %u (%.1f ms), VU cache hits %u\n",
-		         compile.count[0], compile.milliseconds[0], compile.count[1], compile.milliseconds[1],
+		snprintf(line, sizeof(line), "JIT compiles: EE %u (%.1f ms), %u from cache | IOP %u (%.1f ms) | VU %u (%.1f ms), VU cache hits %u\n",
+		         compile.count[0], compile.milliseconds[0], compile.jitCacheHits, compile.count[1], compile.milliseconds[1],
 		         compile.count[2], compile.milliseconds[2], compile.vuCacheHits);
 		result += line;		auto ee = GetEeCompileAddressStats(true);
 		if(ee.newAddresses + ee.repeatAddresses != 0)
@@ -253,6 +255,26 @@ void setFastVuMath(bool enabled)
 	VUShared::g_fastVuMath = enabled;
 }
 
+//Compiled code cache: the page passes stored records as a Uint8Array.
+unsigned int jitCacheImport(emscripten::val records)
+{
+	auto data = emscripten::convertJSArrayToNumberVector<uint8_t>(records);
+	return JitCache::Import(data.data(), data.size());
+}
+
+//Newly compiled blocks as a Uint8Array view of wasm memory (copy it before the next call).
+emscripten::val jitCacheExport()
+{
+	const uint8_t* data = nullptr;
+	size_t size = JitCache::ExportPending(data);
+	return emscripten::val(emscripten::typed_memory_view(size, data));
+}
+
+size_t jitCacheEntries()
+{
+	return JitCache::GetEntryCount();
+}
+
 void setVolume(float volume)
 {
 	alListenerf(AL_GAIN, std::clamp(volume, 0.f, 1.f));
@@ -281,4 +303,8 @@ EMSCRIPTEN_BINDINGS(Play)
 	function("getStateResult", &getStateResult);
 	function("setVolume", &setVolume);
 	function("setFastVuMath", &setFastVuMath);
+	function("jitCacheImport", &jitCacheImport);
+	function("jitCacheExport", &jitCacheExport);
+	function("jitCacheEntries", &jitCacheEntries);
+	function("getVersion", +[]() { return std::string(PLAY_VERSION); });
 }

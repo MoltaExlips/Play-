@@ -76,6 +76,7 @@ void CBasicBlock::SetAotBlockOutputStream(Framework::CStdStream* outputStream)
 
 #ifdef __EMSCRIPTEN__
 #include <atomic>
+#include <mutex>
 #include <chrono>
 
 static std::atomic<uint32> g_compileCount[3];
@@ -113,6 +114,25 @@ BLOCK_COMPILE_STATS GetBlockCompileStats(bool reset)
 void CountVuBlockCacheHit()
 {
 	g_vuCacheHits++;
+}
+
+static std::mutex g_eeAddressStatsMutex;
+static EE_COMPILE_ADDRESS_STATS g_eeAddressStats;
+
+void CountEeBlockCompile(uint32 start, bool newAddress)
+{
+	std::lock_guard lock(g_eeAddressStatsMutex);
+	(newAddress ? g_eeAddressStats.newAddresses : g_eeAddressStats.repeatAddresses)++;
+	g_eeAddressStats.minAddress = std::min(g_eeAddressStats.minAddress, start);
+	g_eeAddressStats.maxAddress = std::max(g_eeAddressStats.maxAddress, start);
+}
+
+EE_COMPILE_ADDRESS_STATS GetEeCompileAddressStats(bool reset)
+{
+	std::lock_guard lock(g_eeAddressStatsMutex);
+	auto result = g_eeAddressStats;
+	if(reset) g_eeAddressStats = EE_COMPILE_ADDRESS_STATS();
+	return result;
 }
 #endif
 

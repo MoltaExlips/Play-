@@ -189,7 +189,13 @@ std::string getStats()
 		snprintf(line, sizeof(line), "JIT compiles: EE %u (%.1f ms) | IOP %u (%.1f ms) | VU %u (%.1f ms), VU cache hits %u\n",
 		         compile.count[0], compile.milliseconds[0], compile.count[1], compile.milliseconds[1],
 		         compile.count[2], compile.milliseconds[2], compile.vuCacheHits);
-		result += line;
+		result += line;		auto ee = GetEeCompileAddressStats(true);
+		if(ee.newAddresses + ee.repeatAddresses != 0)
+		{
+			snprintf(line, sizeof(line), "EE compiles: %u at new addresses, %u at addresses compiled before, range 0x%08X-0x%08X\n",
+			         ee.newAddresses, ee.repeatAddresses, ee.minAddress, ee.maxAddress);
+			result += line;
+		}
 	}
 #ifdef PROFILE
 	result += "\n      Zone  Share  Avg/frame    Min      Max\n";

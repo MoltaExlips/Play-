@@ -20,6 +20,12 @@ if(EMSCRIPTEN)
 	option(PLAYJS_WASM_SIMD "Compile with WebAssembly SIMD (-msimd128)" ON)
 	option(PLAYJS_WASM_EXCEPTIONS "Use native WebAssembly exceptions instead of JS-emulated ones" ON)
 	option(PLAYJS_LTO "Use link-time optimization for Release builds" ON)
+	#mimalloc instead of dlmalloc: no global allocator lock across threads. JIT block compiles
+	#(allocation heavy) are ~20% faster; uses more memory (~370 MB vs ~160 MB in tests).
+	option(PLAYJS_MIMALLOC "Use mimalloc as the allocator" ON)
+	if(PLAYJS_MIMALLOC)
+		add_link_options(-sMALLOC=mimalloc)
+	endif()
 	if(PLAYJS_WASM_SIMD)
 		# Turns Emscripten's NEON headers (used through FRAMEWORK_SIMD_USE_NEON) into real
 		# WebAssembly SIMD instead of scalar fallbacks, and lets the compiler auto-vectorize.

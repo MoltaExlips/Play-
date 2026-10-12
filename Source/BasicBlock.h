@@ -55,6 +55,16 @@ struct BLOCK_COMPILE_STATS
 	uint32 vuCacheHits = 0;
 };
 BLOCK_COMPILE_STATS GetBlockCompileStats(bool reset);
+//EE compiles: whether the block starts at an address never compiled before, and the address range.
+void CountEeBlockCompile(uint32 start, bool newAddress);
+struct EE_COMPILE_ADDRESS_STATS
+{
+	uint32 newAddresses = 0;
+	uint32 repeatAddresses = 0;
+	uint32 minAddress = ~0U;
+	uint32 maxAddress = 0;
+};
+EE_COMPILE_ADDRESS_STATS GetEeCompileAddressStats(bool reset);
 void CountVuBlockCacheHit();
 #endif
 

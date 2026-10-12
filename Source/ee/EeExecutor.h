@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_set>
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -47,6 +48,7 @@ private:
 	IdleLoopBlockMap m_idleLoopBlocks;
 	BlockFpUseAccurateAddSubSet m_blockFpUseAccurateAddSub;
 	BlockFpRoundingModeMap m_blockFpRoundingModes;
+	std::unordered_set<uint32> m_compiledStarts;
 
 	uint8* m_ram = nullptr;
 	size_t m_pageSize = 0;

@@ -227,6 +227,9 @@ BasicBlockPtr CEeExecutor::BlockFactory(CMIPS& context, uint32 start, uint32 end
 		result->AddBlockCompileHints(CMA_EE::COMPILEHINT_FPU_USE_ACCURATE_ADD_SUB);
 	}
 
+#ifdef __EMSCRIPTEN__
+	CountEeBlockCompile(start, m_compiledStarts.insert(start).second);
+#endif
 	result->Compile();
 	if(isCacheableBlock)
 	{

@@ -36,6 +36,8 @@ const VUShared::FLAG_PIPEINFO VUShared::g_pipeInfoMac =
 	offsetof(CMIPS, m_State.pipeMac.pipeTimes)
 };
 
+bool VUShared::g_fastVuMath = false;
+
 const VUShared::FLAG_PIPEINFO VUShared::g_pipeInfoSticky =
 {
 	offsetof(CMIPS, m_State.nCOP2SF),

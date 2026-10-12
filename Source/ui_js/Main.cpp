@@ -12,6 +12,7 @@
 #include "InputProviderEmscripten.h"
 #include "ui_shared/StatsManager.h"
 #include "BasicBlock.h"
+#include "ee/VUShared.h"
 #include "DefaultAppConfig.h"
 
 CPs2VmJs* g_virtualMachine = nullptr;
@@ -240,6 +241,12 @@ int getStateResult()
 	return g_stateOperation.get() ? 1 : 0;
 }
 
+//Takes effect for blocks compiled afterwards, so set it before booting a game.
+void setFastVuMath(bool enabled)
+{
+	VUShared::g_fastVuMath = enabled;
+}
+
 void setVolume(float volume)
 {
 	alListenerf(AL_GAIN, std::clamp(volume, 0.f, 1.f));
@@ -267,4 +274,5 @@ EMSCRIPTEN_BINDINGS(Play)
 	function("loadState", &loadState);
 	function("getStateResult", &getStateResult);
 	function("setVolume", &setVolume);
+	function("setFastVuMath", &setFastVuMath);
 }

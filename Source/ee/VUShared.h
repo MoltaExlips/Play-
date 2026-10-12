@@ -102,9 +102,13 @@ namespace VUShared
 		COMPILEHINT_SKIP_STICKY_UPDATE = (1 << 3),
 	};
 
+	//Speed hack: skip clamping VU float operands (NaN/Inf to max float) everywhere. Only affects
+	//blocks compiled after it is set.
+	extern bool g_fastVuMath;
+
 	static bool UseClamping(uint32 compileHints)
 	{
-		return (compileHints & COMPILEHINT_NO_CLAMPING) == 0;
+		return !g_fastVuMath && ((compileHints & COMPILEHINT_NO_CLAMPING) == 0);
 	}
 
 	uint32 MakeDestFromComponent(uint32);

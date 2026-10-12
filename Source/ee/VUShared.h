@@ -98,6 +98,8 @@ namespace VUShared
 		COMPILEHINT_SKIP_FMAC_UPDATE = (1 << 0),
 		COMPILEHINT_USE_ACCURATE_ADDI = (1 << 1), //For decompression in Tri-Ace games
 		COMPILEHINT_NO_CLAMPING = (1 << 2),
+		//No instruction can observe this instruction's sticky flags entry: accumulate them instead
+		COMPILEHINT_SKIP_STICKY_UPDATE = (1 << 3),
 	};
 
 	static bool UseClamping(uint32 compileHints)

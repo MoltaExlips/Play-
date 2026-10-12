@@ -109,6 +109,9 @@ struct MIPSSTATE
 	REGISTER_PIPELINE pipeP;
 	FLAG_PIPELINE pipeMac;
 	FLAG_PIPELINE pipeSticky;
+	//Sticky flags of VU instructions whose sticky pipeline entry was skipped
+	//(COMPILEHINT_SKIP_STICKY_UPDATE); folded into the next queued entry. Always 0 between blocks.
+	uint32 pipeStickyPending;
 	FLAG_PIPELINE pipeClip;
 
 	alignas(16) uint128 pipeFmacWrite[3]; //Pending FMAC write operations (for dynamic stall computation)

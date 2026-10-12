@@ -265,6 +265,15 @@ void VUShared::TestSZFlags(CMipsJitter* codeGen, uint8 dest, size_t regOffset, u
 	}
 
 	//Update sticky flags
+	if(compileHints & COMPILEHINT_SKIP_STICKY_UPDATE)
+	{
+		//Nothing can read this entry: fold the flags into the next entry that gets queued.
+		codeGen->PushTop();
+		codeGen->PushRel(offsetof(CMIPS, m_State.pipeStickyPending));
+		codeGen->Or();
+		codeGen->PullRel(offsetof(CMIPS, m_State.pipeStickyPending));
+	}
+	else
 	{
 		codeGen->PushTop();
 
@@ -282,6 +291,13 @@ void VUShared::TestSZFlags(CMipsJitter* codeGen, uint8 dest, size_t regOffset, u
 		}
 
 		codeGen->Or();
+
+		//Include flags from skipped entries
+		codeGen->PushRel(offsetof(CMIPS, m_State.pipeStickyPending));
+		codeGen->Or();
+		codeGen->PushCst(0);
+		codeGen->PullRel(offsetof(CMIPS, m_State.pipeStickyPending));
+
 		QueueInFlagPipeline(g_pipeInfoSticky, codeGen, LATENCY_MAC, relativePipeTime);
 	}
 

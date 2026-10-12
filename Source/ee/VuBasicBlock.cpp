@@ -640,13 +640,28 @@ void CVuBasicBlock::ComputeSkipFlagsHints(const std::vector<uint32>& fmacStallDe
 		}
 	}
 
-	//Flag unused results
+	//FSSET overwrites the sticky flags: keep every sticky entry in blocks that use it.
+	bool canSkipSticky = true;
+	for(uint32 address = m_begin; address <= m_end; address += 8)
+	{
+		uint32 opcodeLo = m_context.m_pMemoryMap->GetInstruction(address);
+		if((opcodeLo >> 25) == 0x15) canSkipSticky = false;
+	}
+
+	//Flag unused results. The sticky (status) flags are read by the same instructions that read
+	//MAC flags (FSAND/FSOR), so an entry nobody can observe is unused for both pipelines. The last
+	//flag-writing instruction of a block is always considered used, so pipeStickyPending is
+	//flushed before the block ends.
 	for(uint32 instructionIndex = 0; instructionIndex < maxInstructions; instructionIndex++)
 	{
 		bool used = resultUsed[instructionIndex];
 		if(!used)
 		{
 			hints[instructionIndex] |= VUShared::COMPILEHINT_SKIP_FMAC_UPDATE;
+			if(canSkipSticky)
+			{
+				hints[instructionIndex] |= VUShared::COMPILEHINT_SKIP_STICKY_UPDATE;
+			}
 		}
 	}
 }

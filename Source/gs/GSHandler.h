@@ -907,6 +907,11 @@ public:
 	void ProcessSingleFrame();
 	void ProcessPendingCalls();
 
+	//External pump timing (nanoseconds since the last reset): time spent running GS calls, and
+	//time callers spent blocked waiting for them.
+	static uint64 GetPumpBusyNanoseconds(bool reset);
+	static uint64 GetPumpWaitNanoseconds(bool reset);
+
 	FlipCompleteEvent OnFlipComplete;
 	NewFrameEvent OnNewFrame;
 

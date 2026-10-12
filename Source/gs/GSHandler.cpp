@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <functional>
+#include <atomic>
+#include <chrono>
 #include "AppConfig.h"
 #include "Log.h"
 #include "../states/MemoryStateFile.h"
@@ -2185,6 +2187,9 @@ void CGSHandler::ThreadProc()
 	}
 }
 
+static std::atomic<uint64> g_pumpBusyNanoseconds;
+static std::atomic<uint64> g_pumpWaitNanoseconds;
+
 void CGSHandler::SendGSCall(const CMailBox::FunctionType& function, bool waitForCompletion, bool forceWaitForCompletion)
 {
 	if(!m_gsThreaded)
@@ -2204,7 +2209,9 @@ void CGSHandler::SendGSCall(const CMailBox::FunctionType& function, bool waitFor
 				done.set_value();
 			});
 			NotifyCallPosted();
+			auto waitStart = std::chrono::steady_clock::now();
 			future.wait();
+			g_pumpWaitNanoseconds += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - waitStart).count();
 		}
 		else
 		{
@@ -2227,10 +2234,22 @@ void CGSHandler::SendGSCall(CMailBox::FunctionType&& function)
 
 void CGSHandler::ProcessPendingCalls()
 {
+	auto start = std::chrono::steady_clock::now();
 	while(m_mailBox.IsPending())
 	{
 		m_mailBox.ReceiveCall();
 	}
+	g_pumpBusyNanoseconds += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
+}
+
+uint64 CGSHandler::GetPumpBusyNanoseconds(bool reset)
+{
+	return reset ? g_pumpBusyNanoseconds.exchange(0) : g_pumpBusyNanoseconds.load();
+}
+
+uint64 CGSHandler::GetPumpWaitNanoseconds(bool reset)
+{
+	return reset ? g_pumpWaitNanoseconds.exchange(0) : g_pumpWaitNanoseconds.load();
 }
 
 void CGSHandler::ProcessSingleFrame()

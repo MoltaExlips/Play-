@@ -176,6 +176,13 @@ std::string getStats()
 	result += "IOP usage: " + std::to_string(static_cast<int>(CStatsManager::ComputeCpuUsageRatio(cpu.iopIdleTicks, cpu.iopTotalTicks))) + "%\n";
 	result += "Memory:    " + std::to_string(emscripten_get_heap_size() >> 20) + " MB of " + std::to_string(emscripten_get_heap_max() >> 20) + " MB\n";
 	{
+		double busyMs = static_cast<double>(CGSHandler::GetPumpBusyNanoseconds(true)) / 1e6;
+		double waitMs = static_cast<double>(CGSHandler::GetPumpWaitNanoseconds(true)) / 1e6;
+		char line[160];
+		snprintf(line, sizeof(line), "GS (main thread): busy %.0f ms/s | emulator waited for GS %.0f ms/s\n", busyMs, waitMs);
+		result += line;
+	}
+	{
 		auto compile = GetBlockCompileStats(true);
 		char line[200];
 		snprintf(line, sizeof(line), "JIT compiles: EE %u (%.1f ms) | IOP %u (%.1f ms) | VU %u (%.1f ms), VU cache hits %u\n",

@@ -21,6 +21,10 @@ endif()
 if(PROFILE)
 	list(APPEND DEFINITIONS_LIST PROFILE=1)
 endif()
+if(TARGET_PLATFORM_JS)
+	#Frame captures for glitch reports (recording only runs while a capture is requested).
+	list(APPEND DEFINITIONS_LIST FRAMEDUMP_INCLUDED=1)
+endif()
 list(APPEND DEFINITIONS_LIST _IOP_EMULATE_MODULES=1)
 
 if(USE_AOT_CACHE)

@@ -62,6 +62,10 @@
 
 #define LOG_NAME ("gs")
 
+#if defined(DEBUGGER_INCLUDED) || defined(FRAMEDUMP_INCLUDED)
+#define FRAMEDUMP_SUPPORTED
+#endif
+
 CGSHandler::CGSHandler(bool gsThreaded, bool externalPump)
     : m_gsThreaded(gsThreaded)
     , m_externalPump(externalPump)
@@ -342,8 +346,9 @@ void CGSHandler::Copy(CGSHandler* source)
 
 void CGSHandler::TriggerFrameDump(const FrameDumpCallback& frameDumpCallback)
 {
-#ifdef DEBUGGER_INCLUDED
-	m_mailBox.SendCall(
+#ifdef FRAMEDUMP_SUPPORTED
+	m_frameDumpRequested = true;
+	SendGSCall(
 	    [=]() {
 		    if(m_frameDumpCallback) return;
 		    m_frameDumpCallback = frameDumpCallback;
@@ -353,12 +358,13 @@ void CGSHandler::TriggerFrameDump(const FrameDumpCallback& frameDumpCallback)
 
 void CGSHandler::UpdateFrameDumpState()
 {
-#ifdef DEBUGGER_INCLUDED
+#ifdef FRAMEDUMP_SUPPORTED
 	if(m_frameDump && !m_frameDump->GetPackets().empty())
 	{
 		m_frameDumpCallback(*m_frameDump.get());
 		m_frameDumpCallback = FrameDumpCallback();
 		m_frameDump.reset();
+		m_frameDumpRequested = false;
 	}
 	else if(m_frameDumpCallback)
 	{
@@ -372,6 +378,22 @@ void CGSHandler::UpdateFrameDumpState()
 		m_frameDump->SetInitialSMODE2(GetSMODE2());
 	}
 #endif
+}
+
+CGSHandler::DisplayRegisters CGSHandler::GetDisplayRegisters()
+{
+	std::lock_guard registerMutexLock(m_registerMutex);
+	return {m_nPMODE, m_nDISPFB1.value.q, m_nDISPLAY1.value.q, m_nDISPFB2.value.q, m_nDISPLAY2.value.q};
+}
+
+void CGSHandler::SetDisplayRegisters(const DisplayRegisters& registers)
+{
+	std::lock_guard registerMutexLock(m_registerMutex);
+	m_nPMODE = registers[0];
+	m_nDISPFB1.value.q = registers[1];
+	m_nDISPLAY1.value.q = registers[2];
+	m_nDISPFB2.value.q = registers[3];
+	m_nDISPLAY2.value.q = registers[4];
 }
 
 void CGSHandler::InitFromFrameDump(CFrameDump* frameDump)
@@ -639,7 +661,7 @@ void CGSHandler::FeedImageData(const void* data, uint32 length)
 
 	SendGSCall(
 	    [this, imageData, length]() {
-#ifdef DEBUGGER_INCLUDED
+#ifdef FRAMEDUMP_SUPPORTED
 		    if(m_frameDump)
 		    {
 			    m_frameDump->AddImagePacket(imageData, length);
@@ -661,8 +683,14 @@ void CGSHandler::ProcessWriteBuffer(const CGsPacketMetadata* metadata)
 {
 	assert(m_writeBufferProcessIndex <= m_writeBufferSize);
 	assert(m_writeBufferSubmitIndex <= m_writeBufferProcessIndex);
+#ifdef FRAMEDUMP_SUPPORTED
 #ifdef DEBUGGER_INCLUDED
-	if(uint32 packetSize = m_writeBufferSize - m_writeBufferProcessIndex; packetSize != 0)
+	bool recordPacket = true;
+#else
+	//Only post the recording call while a capture is pending.
+	bool recordPacket = m_frameDumpRequested;
+#endif
+	if(uint32 packetSize = m_writeBufferSize - m_writeBufferProcessIndex; recordPacket && (packetSize != 0))
 	{
 		SendGSCall(
 		    [this,

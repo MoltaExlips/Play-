@@ -841,6 +841,12 @@ public:
 
 	void InitFromFrameDump(CFrameDump*);
 
+	//PMODE, DISPFB1, DISPLAY1, DISPFB2, DISPLAY2: frame dumps don't include them, but replaying
+	//one needs them to show the frame.
+	typedef std::array<uint64, 5> DisplayRegisters;
+	DisplayRegisters GetDisplayRegisters();
+	void SetDisplayRegisters(const DisplayRegisters&);
+
 	bool GetDrawEnabled() const;
 	void SetDrawEnabled(bool);
 
@@ -1145,6 +1151,7 @@ protected:
 	bool m_threadDone = false;
 	std::unique_ptr<CFrameDump> m_frameDump;
 	FrameDumpCallback m_frameDumpCallback;
+	std::atomic<bool> m_frameDumpRequested = false;
 	bool m_regsDirty = false;
 	bool m_drawEnabled = true;
 	CINTC* m_intc = nullptr;

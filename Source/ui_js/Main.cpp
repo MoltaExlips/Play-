@@ -16,6 +16,9 @@
 #include "ee/Vpu.h"
 #include "JitCache.h"
 #include "DefaultAppConfig.h"
+#include "FrameDump.h"
+#include "StdStreamUtils.h"
+#include <atomic>
 
 CPs2VmJs* g_virtualMachine = nullptr;
 CGSHandler::NewFrameEvent::Connection g_gsNewFrameConnection;
@@ -288,6 +291,46 @@ void setVolume(float volume)
 	alListenerf(AL_GAIN, std::clamp(volume, 0.f, 1.f));
 }
 
+//Glitch reports: captureFrame records everything the GS receives during the next frame into
+//path (plus path + ".regs", the display registers); replayFrame draws such a capture. The page
+//polls getCaptureResult(): -1 in progress, 0 failed, 1 done, 2 nothing pending.
+static std::atomic<int> g_captureResult = 2;
+
+void captureFrame(std::string path)
+{
+	g_captureResult = -1;
+	auto gs = g_virtualMachine->m_ee->m_gs;
+	gs->TriggerFrameDump([gs, path](const CFrameDump& frameDump) {
+		try
+		{
+			auto displayRegisters = gs->GetDisplayRegisters();
+			{
+				auto output = Framework::CreateOutputStdStream(path + ".regs");
+				output.Write(displayRegisters.data(), sizeof(displayRegisters));
+			}
+			auto output = Framework::CreateOutputStdStream(path);
+			frameDump.Write(output);
+			g_captureResult = 1;
+		}
+		catch(const std::exception& ex)
+		{
+			printf("Frame capture failed: %s.\r\n", ex.what());
+			g_captureResult = 0;
+		}
+	});
+}
+
+void replayFrame(std::string path)
+{
+	g_captureResult = -1;
+	g_virtualMachine->ReplayFrameDump(path, [](int result) { g_captureResult = result; });
+}
+
+int getCaptureResult()
+{
+	return g_captureResult;
+}
+
 void clearStats()
 {
 	CStatsManager::GetInstance().ClearStats();
@@ -310,6 +353,9 @@ EMSCRIPTEN_BINDINGS(Play)
 	function("loadState", &loadState);
 	function("getStateResult", &getStateResult);
 	function("setVolume", &setVolume);
+	function("captureFrame", &captureFrame);
+	function("replayFrame", &replayFrame);
+	function("getCaptureResult", &getCaptureResult);
 	function("setFastVuMath", &setFastVuMath);
 	function("setMtvu", &setMtvu);
 	function("jitCacheImport", &jitCacheImport);

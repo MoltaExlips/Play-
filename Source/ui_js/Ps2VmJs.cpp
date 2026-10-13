@@ -1,4 +1,6 @@
 #include "Ps2VmJs.h"
+#include "FrameDump.h"
+#include "StdStreamUtils.h"
 #include "Jitter_CodeGen_Wasm.h"
 #include "MemoryUtils.h"
 #include "BasicBlock.h"
@@ -159,6 +161,56 @@ void CPs2VmJs::ResumeAsyncJs()
 		if(GetStatus() == RUNNING) return;
 		ResumeImpl();
 		OnRunningStateChange();
+	});
+}
+
+void CPs2VmJs::ReplayFrameDump(std::string path, std::function<void(int)> done)
+{
+	m_mailBox.SendCall([this, path, done]() {
+		try
+		{
+			CFrameDump frameDump;
+			{
+				auto input = Framework::CreateInputStdStream(path);
+				frameDump.Read(input);
+			}
+			CGSHandler::DisplayRegisters displayRegisters = {};
+			{
+				auto input = Framework::CreateInputStdStream(path + ".regs");
+				input.Read(displayRegisters.data(), sizeof(displayRegisters));
+			}
+
+			auto gs = m_ee->m_gs;
+			gs->Reset();
+			gs->InitFromFrameDump(&frameDump);
+			gs->SetDisplayRegisters(displayRegisters);
+			for(const auto& packet : frameDump.GetPackets())
+			{
+				if(packet.registerWrites.empty())
+				{
+					gs->ProcessWriteBuffer(nullptr);
+					gs->FeedImageData(packet.imageData.data(), packet.imageData.size());
+				}
+				else
+				{
+					for(const auto& registerWrite : packet.registerWrites)
+					{
+						gs->WriteRegister(registerWrite);
+					}
+				}
+			}
+			gs->ProcessWriteBuffer(nullptr);
+			//Draw everything (Finish submits the queued writes), then show the frame.
+			gs->Finish(true);
+			gs->Flip(CGSHandler::FLIP_FLAG_FORCE | CGSHandler::FLIP_FLAG_WAIT);
+			printf("Replayed frame capture: %u packets.\r\n", static_cast<unsigned>(frameDump.GetPackets().size()));
+			done(1);
+		}
+		catch(const std::exception& ex)
+		{
+			printf("Failed to replay frame capture: %s.\r\n", ex.what());
+			done(0);
+		}
 	});
 }
 

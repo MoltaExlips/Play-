@@ -15,6 +15,9 @@ public:
 	void ResumeAsyncJs();
 	bool IsPaused() const;
 
+	//Draws a frame captured with captureFrame (no game running). Result: 1 done, 0 failed.
+	void ReplayFrameDump(std::string path, std::function<void(int)> done);
+
 	//EE clock as a fraction of the real PS2 (speed hack: fewer EE cycles per frame).
 	//Kept across boots, since Reset() sets the scale back to 1:1.
 	void SetEeClockScale(uint32 numerator, uint32 denominator);

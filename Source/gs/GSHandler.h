@@ -911,6 +911,8 @@ public:
 	//time callers spent blocked waiting for them.
 	static uint64 GetPumpBusyNanoseconds(bool reset);
 	static uint64 GetPumpWaitNanoseconds(bool reset);
+	//Pumps that started while another was running GS calls (and were skipped).
+	static uint32 GetPumpNestedCount(bool reset);
 
 	FlipCompleteEvent OnFlipComplete;
 	NewFrameEvent OnNewFrame;
@@ -1148,6 +1150,7 @@ protected:
 	CINTC* m_intc = nullptr;
 	bool m_gsThreaded = true;
 	bool m_externalPump = false;
+	bool m_pumping = false;
 	bool m_flipped = false;
 
 private:

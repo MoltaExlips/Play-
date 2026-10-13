@@ -183,7 +183,8 @@ std::string getStats()
 		double busyMs = static_cast<double>(CGSHandler::GetPumpBusyNanoseconds(true)) / 1e6;
 		double waitMs = static_cast<double>(CGSHandler::GetPumpWaitNanoseconds(true)) / 1e6;
 		char line[160];
-		snprintf(line, sizeof(line), "GS (main thread): busy %.0f ms/s | emulator waited for GS %.0f ms/s\n", busyMs, waitMs);
+		unsigned nested = CGSHandler::GetPumpNestedCount(true);
+		snprintf(line, sizeof(line), "GS (main thread): busy %.0f ms/s | emulator waited for GS %.0f ms/s | nested runs blocked %u\n", busyMs, waitMs, nested);
 		result += line;
 	}
 	{

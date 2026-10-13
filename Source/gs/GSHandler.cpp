@@ -2189,6 +2189,7 @@ void CGSHandler::ThreadProc()
 
 static std::atomic<uint64> g_pumpBusyNanoseconds;
 static std::atomic<uint64> g_pumpWaitNanoseconds;
+static std::atomic<uint32> g_pumpNestedCount;
 
 void CGSHandler::SendGSCall(const CMailBox::FunctionType& function, bool waitForCompletion, bool forceWaitForCompletion)
 {
@@ -2234,17 +2235,32 @@ void CGSHandler::SendGSCall(CMailBox::FunctionType&& function)
 
 void CGSHandler::ProcessPendingCalls()
 {
+	//A blocked main thread runs proxied work, so a pump can start while a GS call is running
+	//(e.g. while it waits on a lock). Running later calls then would interleave them with the
+	//unfinished one (shared conversion buffers, half-applied state). The outer loop drains them.
+	if(m_pumping)
+	{
+		g_pumpNestedCount++;
+		return;
+	}
+	m_pumping = true;
 	auto start = std::chrono::steady_clock::now();
 	while(m_mailBox.IsPending())
 	{
 		m_mailBox.ReceiveCall();
 	}
+	m_pumping = false;
 	g_pumpBusyNanoseconds += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
 }
 
 uint64 CGSHandler::GetPumpBusyNanoseconds(bool reset)
 {
 	return reset ? g_pumpBusyNanoseconds.exchange(0) : g_pumpBusyNanoseconds.load();
+}
+
+uint32 CGSHandler::GetPumpNestedCount(bool reset)
+{
+	return reset ? g_pumpNestedCount.exchange(0) : g_pumpNestedCount.load();
 }
 
 uint64 CGSHandler::GetPumpWaitNanoseconds(bool reset)

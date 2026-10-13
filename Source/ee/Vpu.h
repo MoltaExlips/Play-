@@ -6,6 +6,13 @@
 #include "Convertible.h"
 #include "zip/ZipArchiveWriter.h"
 #include "zip/ZipArchiveReader.h"
+#include "../MailBox.h"
+#include <atomic>
+#include <deque>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <vector>
 
 class CVif;
 class CGIF;
@@ -80,6 +87,20 @@ public:
 		return m_vuState == VU_STATE_RUNNING;
 	}
 
+	//Multi-threaded VU1 (speed hack): VU1 microprograms run on a worker thread while the EE keeps
+	//going. Requested before boot; latched by Reset(). XGKICK packets are copied on the worker and
+	//sent to the GIF from the EE thread, in order.
+	static std::atomic<bool> s_asyncRequested;
+	//Called on the worker thread before it runs anything (frontends set up per-thread JIT state).
+	static void (*s_asyncThreadInit)();
+
+	//True while a microprogram runs on the worker (GIF PATH2/3 hold back to keep packet order).
+	inline bool IsAsyncBusy() const
+	{
+		return m_async && (m_vuState == VU_STATE_RUNNING);
+	}
+	void WaitForAsyncIdle();
+
 	CVif& GetVif();
 
 	void SetFbrst(uint32);
@@ -134,4 +155,27 @@ protected:
 	uint32 m_fbrst = 0;
 
 	CProfiler::ZoneHandle m_vuProfilerZone = 0;
+
+private:
+	void StartAsyncThread();
+	void StopAsyncThread();
+	void RunOnVuThread(const std::function<void()>&);
+	void RunAsyncMicroProgram();
+	void PollAsync();
+	void QueueXgKick(uint32);
+	void DrainXgKicks();
+
+	bool m_async = false;
+	bool m_blocksOnWorker = false;
+	bool m_asyncEnd = false;
+	std::thread m_asyncThread;
+	std::thread::id m_asyncThreadId;
+	CMailBox m_asyncMailBox;
+	std::atomic<bool> m_asyncBusy = false;
+	std::mutex m_asyncIdleMutex;
+	std::condition_variable m_asyncIdleCondition;
+	std::atomic<bool> m_asyncStopRequest = false;
+	uint32 m_asyncResult = 0;
+	std::mutex m_xgKickMutex;
+	std::deque<std::vector<uint8>> m_xgKicks;
 };

@@ -13,6 +13,7 @@
 #include "ui_shared/StatsManager.h"
 #include "BasicBlock.h"
 #include "ee/VUShared.h"
+#include "ee/Vpu.h"
 #include "JitCache.h"
 #include "DefaultAppConfig.h"
 
@@ -275,6 +276,12 @@ size_t jitCacheEntries()
 	return JitCache::GetEntryCount();
 }
 
+//Multi-threaded VU1 speed hack; takes effect at the next boot.
+void setMtvu(bool enabled)
+{
+	CVpu::s_asyncRequested = enabled;
+}
+
 void setVolume(float volume)
 {
 	alListenerf(AL_GAIN, std::clamp(volume, 0.f, 1.f));
@@ -303,6 +310,7 @@ EMSCRIPTEN_BINDINGS(Play)
 	function("getStateResult", &getStateResult);
 	function("setVolume", &setVolume);
 	function("setFastVuMath", &setFastVuMath);
+	function("setMtvu", &setMtvu);
 	function("jitCacheImport", &jitCacheImport);
 	function("jitCacheExport", &jitCacheExport);
 	function("jitCacheEntries", &jitCacheEntries);

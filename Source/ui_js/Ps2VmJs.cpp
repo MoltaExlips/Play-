@@ -8,6 +8,8 @@
 #include "ee/PS2OS.h"
 #include "ee/FpAddTruncate.h"
 #include <emscripten.h>
+#include <vector>
+#include "ee/Vpu.h"
 
 // CodeGen binds each helper by wrapping its JS export (Emscripten's lazy export stub) with
 // convertJsFunctionToWasm, so every call from generated code goes wasm -> JS -> wasm. A C++
@@ -24,10 +26,29 @@ EM_JS(void, ExposeFunction, (const char* functionName, uintptr_t functionPtr), {
 	Module[UTF8ToString(functionName)] = getWasmTableEntry(functionPtr);
 });
 
+//Import table entries, to rebuild the table on other threads that run generated code.
+static std::vector<std::pair<int, uintptr_t>> g_importBindings;
+
+//Wasm tables are per thread: a thread that compiles and runs blocks needs its own import table.
+EM_JS(void, CreateImportTableOnThisThread, (int count), {
+	Module.codeGenImportTable = new WebAssembly.Table({ element: 'anyfunc', initial: Math.max(32, count) });
+	Module.codeGenImportTableNextIndex = count;
+});
+
+static void InitJitThread()
+{
+	CreateImportTableOnThisThread(static_cast<int>(g_importBindings.size()));
+	for(const auto& [importId, functionPtr] : g_importBindings)
+	{
+		BindImportDirect(importId, functionPtr);
+	}
+}
+
 static void RegisterFunction(uintptr_t functionPtr, const char* functionName, const char* functionSig)
 {
 	ExposeFunction(functionName, functionPtr);
 	Jitter::CWasmFunctionRegistry::RegisterFunction(functionPtr, functionName, functionSig);
+	g_importBindings.emplace_back(Jitter::CWasmFunctionRegistry::FindFunction(functionPtr)->id, functionPtr);
 	BindImportDirect(Jitter::CWasmFunctionRegistry::FindFunction(functionPtr)->id, functionPtr);
 }
 
@@ -81,6 +102,8 @@ void CPs2VmJs::CreateVM()
 	RegisterFunction(reinterpret_cast<uintptr_t>(&CCOP_SCU::HandleTLBWrite), "_CCOP_SCU_HandleTLBWrite", "vi");
 	RegisterFunction(reinterpret_cast<uintptr_t>(&FpAddTruncate), "_FpAddTruncate", "iii");
 	RegisterFunction(reinterpret_cast<uintptr_t>(&TestVectorNaN), "_TestVectorNaN", "viii");
+
+	CVpu::s_asyncThreadInit = &InitJitThread;
 
 	CPS2VM::CreateVM();
 }

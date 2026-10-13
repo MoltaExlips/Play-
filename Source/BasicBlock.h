@@ -107,6 +107,9 @@ public:
 	void Compile();
 	virtual void CompileRange(CMipsJitter*);
 #ifdef __EMSCRIPTEN__
+	void RecompileOnThisThread();
+#endif
+#ifdef __EMSCRIPTEN__
 	//Extra block state that changes the generated code (part of the compiled code cache key).
 	virtual uint32 GetCompileKeyExtra() const
 	{

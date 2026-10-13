@@ -81,6 +81,11 @@ public:
 		return m_context.m_State.cycleQuota;
 	}
 
+	void RecompileForThisThread() override
+	{
+		m_emptyBlock->RecompileOnThisThread();
+	}
+
 	CBasicBlock* FindBlockStartingAt(uint32 address) const
 	{
 		return m_blockLookup.FindBlockAt(address);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Types.h"
+#include <functional>
 #include "zip/ZipArchiveWriter.h"
 #include "zip/ZipArchiveReader.h"
 #include "../gs/GSHandler.h"
@@ -52,6 +53,9 @@ public:
 
 	void Reset();
 	uint32 ReceiveDMA(uint32, uint32, uint32, bool);
+
+	//Multi-threaded VU1: PATH3 transfers wait while this returns true.
+	std::function<bool()> IsPath1Busy;
 
 	uint32 ProcessSinglePacket(const uint8*, uint32, uint32, uint32, const CGsPacketMetadata&);
 	uint32 ProcessMultiplePackets(const uint8*, uint32, uint32, uint32, const CGsPacketMetadata&);

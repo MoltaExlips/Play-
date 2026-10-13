@@ -470,6 +470,11 @@ void CGIF::DrainFifo()
 
 uint32 CGIF::ReceiveDMA(uint32 address, uint32 qwc, uint32 unused, bool tagIncluded)
 {
+	if(IsPath1Busy && IsPath1Busy())
+	{
+		return 0;
+	}
+
 	uint32 size = qwc * 0x10;
 
 	uint8* memory = nullptr;

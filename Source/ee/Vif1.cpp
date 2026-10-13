@@ -97,6 +97,14 @@ uint32 CVif1::ReceiveDMA(uint32 address, uint32 qwc, uint32 direction, bool tagI
 
 void CVif1::ExecuteCommand(StreamType& stream, CODE nCommand)
 {
+	//Multi-threaded VU1: VIF1 commands wait for the running microprogram, as when VU1 ran
+	//synchronously. Keeps UNPACK/MPG from overwriting data a microprogram hasn't read yet and keeps
+	//PATH2 packets after the program's XGKICKs; the EE still runs in parallel with VU1.
+	if((m_STAT.nVPS == 0) && m_vpu.IsAsyncBusy())
+	{
+		m_STAT.nVEW = 1;
+		return;
+	}
 #ifdef _DEBUG
 	DisassembleCommand(nCommand);
 #endif

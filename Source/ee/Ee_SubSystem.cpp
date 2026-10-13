@@ -65,6 +65,7 @@ CSubSystem::CSubSystem(uint8* iopRam, CIopBios& iopBios)
 	//Setup link between EE's VU context and VU0's VU context
 	m_vu0StateChangedConnection = m_vpu0->VuStateChanged.Connect([this](CVpu::VU_STATE newState) { Vu0StateChanged(newState); });
 
+	m_gif.IsPath1Busy = [this]() { return m_vpu1->IsAsyncBusy(); };
 	m_vu1InterruptTriggeredConnection = m_vpu1->VuInterruptTriggered.Connect(
 	    [this]() {
 		    uint32 currentState = m_intc.GetRegister(CINTC::INTC_STAT);
@@ -370,6 +371,7 @@ void CSubSystem::NotifyVBlankEnd()
 
 void CSubSystem::SaveState(Framework::CZipArchiveWriter& archive)
 {
+	m_vpu1->WaitForAsyncIdle();
 	archive.InsertFile(std::make_unique<CMemoryStateFile>(STATE_EE, &m_EE.m_State, sizeof(MIPSSTATE)));
 	archive.InsertFile(std::make_unique<CMemoryStateFile>(STATE_VU0, &m_VU0.m_State, sizeof(MIPSSTATE)));
 	archive.InsertFile(std::make_unique<CMemoryStateFile>(STATE_VU1, &m_VU1.m_State, sizeof(MIPSSTATE)));
@@ -395,7 +397,8 @@ void CSubSystem::LoadState(Framework::CZipArchiveReader& archive)
 {
 	m_EE.m_executor->ClearActiveBlocksInRange(0, PS2::EE_RAM_SIZE, false);
 	m_vpu0->GetContext().m_executor->ClearActiveBlocksInRange(0, PS2::MICROMEM0SIZE, false);
-	m_vpu1->GetContext().m_executor->ClearActiveBlocksInRange(0, PS2::MICROMEM1SIZE, false);
+	m_vpu1->WaitForAsyncIdle();
+	m_vpu1->InvalidateMicroProgram();
 
 	archive.BeginReadFile(STATE_EE)->Read(&m_EE.m_State, sizeof(MIPSSTATE));
 	archive.BeginReadFile(STATE_VU0)->Read(&m_VU0.m_State, sizeof(MIPSSTATE));

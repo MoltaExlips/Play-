@@ -167,6 +167,17 @@ static void ComputeJitCacheKey(CMIPS& context, uint32 begin, uint32 end, uint32 
 	memcpy(key, &hash, 16);
 }
 
+#ifdef __EMSCRIPTEN__
+void CBasicBlock::RecompileOnThisThread()
+{
+	//The current code is in another thread's function table and can't be freed from this one:
+	//leak it (one small function per switch) instead of removing an unrelated entry here.
+	auto leaked = new CMemoryFunction();
+	*leaked = std::move(m_function);
+	Compile();
+}
+#endif
+
 void CBasicBlock::Compile()
 {
 #ifdef __EMSCRIPTEN__
@@ -191,7 +202,7 @@ void CBasicBlock::Compile()
 	Framework::CMemStream stream;
 	{
 		static
-#ifdef AOT_BUILD_CACHE
+#if defined(AOT_BUILD_CACHE) || defined(__EMSCRIPTEN__)
 		    thread_local
 #endif
 		    CMipsJitter* jitter = nullptr;

@@ -731,6 +731,12 @@ void CPS2VM::UpdateEe()
 
 		m_ee->m_vpu0->Execute(m_singleStepVu0 ? 1 : executed);
 		m_ee->m_vpu1->Execute(m_singleStepVu1 ? 1 : executed);
+		//Multi-threaded VU1: an idle EE would skip ahead in time while VU1 still works on the
+		//other thread. Wait for VU1 instead, as it would have finished instantly when synchronous.
+		if(m_ee->IsCpuIdle() && m_ee->m_vpu1->IsAsyncBusy())
+		{
+			m_ee->m_vpu1->WaitForAsyncIdle();
+		}
 
 		m_eeExecutionTicks -= executed;
 		m_spuUpdateTicks -= (static_cast<int64>(executed) << SPU_UPDATE_TICKS_PRECISION);
@@ -944,6 +950,8 @@ void CPS2VM::EmuThread()
 					m_inVblank = !m_inVblank;
 					if(m_inVblank)
 					{
+						//Don't present a frame while VU1 is still drawing it on its thread.
+						m_ee->m_vpu1->WaitForAsyncIdle();
 						m_vblankTicks += m_vblankTicksTotal;
 						m_ee->NotifyVBlankStart();
 						m_iop->NotifyVBlankStart();

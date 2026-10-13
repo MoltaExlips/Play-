@@ -64,7 +64,7 @@ target_link_options(Play PRIVATE "-sALLOW_TABLE_GROWTH")
 target_link_options(Play PRIVATE "-sALLOW_MEMORY_GROWTH")
 #target_link_options(Play PRIVATE "-sASSERTIONS=2")
 target_link_options(Play PRIVATE "-sEXPORT_NAME=Play")
-target_link_options(Play PRIVATE "-sPTHREAD_POOL_SIZE=2")
+target_link_options(Play PRIVATE "-sPTHREAD_POOL_SIZE=3") #VM thread, multi-threaded VU1, spare
 target_link_options(Play PRIVATE "-sWASM_BIGINT")
 target_link_options(Play PRIVATE "-sOFFSCREEN_FRAMEBUFFER=1")
 target_link_options(Play PRIVATE "-sENVIRONMENT=web,worker")

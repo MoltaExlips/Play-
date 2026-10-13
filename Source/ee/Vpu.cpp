@@ -398,7 +398,8 @@ void CVpu::PollAsync()
 {
 	DrainXgKicks();
 	if((m_vuState != VU_STATE_RUNNING) || m_asyncBusy.load(std::memory_order_acquire)) return;
-	DrainXgKicks();
+	//Stay running until every XGKICK reached the GIF, so VIF1 and PATH3 keep waiting for them.
+	if(!DrainXgKicks()) return;
 	switch(m_asyncResult)
 	{
 	case MIPS_EXCEPTION_VU_TBIT:
@@ -468,16 +469,22 @@ void CVpu::QueueXgKick(uint32 address)
 	m_xgKicks.push_back(std::move(packet));
 }
 
-void CVpu::DrainXgKicks()
+//Sends queued XGKICK packets to the GIF. Returns false if some must wait: while another path is in the
+//middle of a packet (e.g. a PATH3 image transfer split across DMA chunks), the GIF would take PATH1
+//data as that packet's continuation.
+bool CVpu::DrainXgKicks()
 {
-	std::deque<std::vector<uint8>> kicks;
+	for(;;)
 	{
-		std::lock_guard lock(m_xgKickMutex);
-		if(m_xgKicks.empty()) return;
-		kicks.swap(m_xgKicks);
-	}
-	for(const auto& packet : kicks)
-	{
+		std::vector<uint8> packet;
+		{
+			std::lock_guard lock(m_xgKickMutex);
+			if(m_xgKicks.empty()) return true;
+			auto activePath = m_gif.GetActivePath();
+			if((activePath != 0) && (activePath != 1)) return false;
+			packet = std::move(m_xgKicks.front());
+			m_xgKicks.pop_front();
+		}
 		CGsPacketMetadata metadata;
 		metadata.pathIndex = 1;
 		uint32 size = static_cast<uint32>(packet.size());

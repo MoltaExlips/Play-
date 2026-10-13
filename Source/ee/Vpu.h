@@ -163,7 +163,7 @@ private:
 	void RunAsyncMicroProgram();
 	void PollAsync();
 	void QueueXgKick(uint32);
-	void DrainXgKicks();
+	bool DrainXgKicks();
 
 	bool m_async = false;
 	bool m_blocksOnWorker = false;

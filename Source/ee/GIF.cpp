@@ -470,7 +470,9 @@ void CGIF::DrainFifo()
 
 uint32 CGIF::ReceiveDMA(uint32 address, uint32 qwc, uint32 unused, bool tagIncluded)
 {
-	if(IsPath1Busy && IsPath1Busy())
+	//Multi-threaded VU1: don't start a PATH3 packet while VU1 runs (its XGKICKs come first), but let
+	//one that's already in progress finish, or queued PATH1 packets would wait on it forever.
+	if((m_activePath != 3) && IsPath1Busy && IsPath1Busy())
 	{
 		return 0;
 	}
